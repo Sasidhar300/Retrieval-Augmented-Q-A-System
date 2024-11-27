@@ -1,0 +1,5 @@
+flask
+streamlit
+sentence-transformers
+transformers
+faiss-cpu
