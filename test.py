@@ -1,9 +1,10 @@
-import os
-import json
 """Diagnostic QA experiment, not a published SQuAD benchmark.
 
 This loads heavy models and is separate from lightweight test_metrics.py.
 """
+
+import os
+import json
 
 from model import embedder, qa_pipeline, summary_pipeline, index, documents
 from evaluation_metrics import exact_match, token_f1
@@ -53,8 +54,7 @@ for i, question in enumerate(questions[:total]):
     f1 = token_f1(generated_answer, ground_truth_answers[i])
     exact_matches += int(em)
     f1_sum += f1
-    if em:
-        continue
+    if not em:
         results.append({
             "question": question,
             "expected": ground_truth_answers[i],
