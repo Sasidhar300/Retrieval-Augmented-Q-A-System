@@ -1,15 +1,12 @@
 import os
 import json
-from model import embedder, qa_pipeline, summary_pipeline, index, documents
-from difflib import SequenceMatcher
+"""Diagnostic QA experiment, not a published SQuAD benchmark.
 
-# Helper function for fuzzy matching
-def is_match(generated, ground_truths):
-    for gt in ground_truths:
-        similarity = SequenceMatcher(None, generated.lower(), gt.lower()).ratio()
-        if similarity > 0.7:  # Adjust threshold as needed
-            return True
-    return False
+This loads heavy models and is separate from lightweight test_metrics.py.
+"""
+
+from model import embedder, qa_pipeline, summary_pipeline, index, documents
+from evaluation_metrics import exact_match, token_f1
 
 # Load SQuAD dev set for testing
 def load_squad_questions(file_path):
@@ -29,11 +26,13 @@ dev_file = os.path.join("documents", "dev-v1.1.json")
 questions, ground_truth_answers = load_squad_questions(dev_file)
 
 # Run the testing loop
-correct = 0
-total = len(questions)
+exact_matches = 0
+f1_sum = 0.0
+# Only the evaluated subset belongs in the metric denominator.
+total = min(50, len(questions))
 results = []
 
-for i, question in enumerate(questions[:50]):  # Limit to 50 questions for testing
+for i, question in enumerate(questions[:total]):
     print(f"Testing Question {i+1}/{total}: {question}")
     
     # Retrieve the most relevant document
@@ -49,10 +48,13 @@ for i, question in enumerate(questions[:50]):  # Limit to 50 questions for testi
     print(f"Generated Answer: {generated_answer}")
     print(f"Ground Truth Answers: {ground_truth_answers[i]}")
 
-    # Match using semantic similarity
-    if is_match(generated_answer, ground_truth_answers[i]):
-        correct += 1
-    else:
+    # Deterministic text metrics, not "semantic similarity".
+    em = exact_match(generated_answer, ground_truth_answers[i])
+    f1 = token_f1(generated_answer, ground_truth_answers[i])
+    exact_matches += int(em)
+    f1_sum += f1
+    if em:
+        continue
         results.append({
             "question": question,
             "expected": ground_truth_answers[i],
@@ -60,8 +62,14 @@ for i, question in enumerate(questions[:50]):  # Limit to 50 questions for testi
             "retrieved_document": closest_doc,
         })
 
-accuracy = correct / total * 100
-print(f"Accuracy: {accuracy:.2f}%")
+# These scores are *diagnostic only*: the retrieval corpus is SQuAD train
+# contexts while the questions are from dev, so this is not the standard
+# SQuAD evaluation protocol. See README.md.
+exact_match_percent = (exact_matches / total * 100) if total else 0.0
+token_f1_percent = (f1_sum / total * 100) if total else 0.0
+print(f"Evaluated questions: {total}")
+print(f"Diagnostic exact match: {exact_match_percent:.2f}%")
+print(f"Diagnostic token F1: {token_f1_percent:.2f}%")
 
 # Show errors for debugging
 print("Examples of mismatches:")
